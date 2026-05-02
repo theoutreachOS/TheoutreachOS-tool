@@ -1,0 +1,408 @@
+import { useState } from "react";
+
+const STEPS = [
+  { n: 1, label: "Your Business" },
+  { n: 2, label: "Your Offer" },
+  { n: 3, label: "Your Target" },
+  { n: 4, label: "Generate" },
+];
+
+const INDUSTRIES = [
+  "SaaS / Software", "Marketing Agency", "Consulting", "Real Estate",
+  "Financial Services", "Recruiting / HR", "E-commerce", "Healthcare",
+  "Legal Services", "Construction / Trades", "Other B2B"
+];
+
+const GOALS = [
+  "Book sales calls", "Generate leads", "Drive demo requests",
+  "Get referral partners", "Sell a productized service", "Other"
+];
+
+export default function OutreachOS() {
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState({
+    companyName: "", industry: "", offer: "", transformation: "",
+    targetTitle: "", targetIndustry: "", targetPain: "", proof: "", goal: ""
+  });
+  const [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [activeSeq, setActiveSeq] = useState(0);
+  const [copied, setCopied] = useState(null);
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const isValid = {
+    1: form.companyName && form.industry,
+    2: form.offer && form.transformation,
+    3: form.targetTitle && form.targetIndustry && form.targetPain && form.goal,
+  };
+
+  const generate = async () => {
+    setLoading(true);
+    setResult(null);
+
+    const prompt = `You are a world-class B2B cold email copywriter. Generate a complete cold outreach system for this business.
+
+BUSINESS: ${form.companyName} (${form.industry})
+OFFER: ${form.offer}
+TRANSFORMATION/RESULT THEY DELIVER: ${form.transformation}
+PROOF/SOCIAL PROOF: ${form.proof || "Not provided"}
+TARGET: ${form.targetTitle} in ${form.targetIndustry}
+TARGET PAIN POINT: ${form.targetPain}
+GOAL OF OUTREACH: ${form.goal}
+
+Generate the following. Respond ONLY with valid JSON, no markdown, no backticks, no preamble:
+
+{
+  "emails": [
+    {
+      "label": "Email 1 — First Touch",
+      "subject": "...",
+      "body": "..."
+    },
+    {
+      "label": "Email 2 — Follow-up (Day 3)",
+      "subject": "...",
+      "body": "..."
+    },
+    {
+      "label": "Email 3 — Value Add (Day 7)",
+      "subject": "...",
+      "body": "..."
+    },
+    {
+      "label": "Email 4 — Last Attempt (Day 14)",
+      "subject": "...",
+      "body": "..."
+    },
+    {
+      "label": "Email 5 — Break-up (Day 21)",
+      "subject": "...",
+      "body": "..."
+    }
+  ],
+  "linkedin": "A short 300-character LinkedIn connection request message",
+  "tips": ["Tip 1 specific to this niche", "Tip 2", "Tip 3"]
+}
+
+Rules for every email:
+- Under 100 words each
+- First line is entirely about the recipient, not about ${form.companyName}
+- No "I hope this email finds you well"
+- One clear CTA per email (not "let's hop on a call" for email 1 — use "worth a reply?" or "interested?")
+- Sound like a human, not a marketer
+- Reference ${form.targetIndustry} and ${form.targetPain} specifically
+- Use {{FirstName}} and {{Company}} as personalization tokens`;
+
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          messages: [{ role: "user", content: prompt }]
+        })
+      });
+      const data = await res.json();
+      const raw = data.content?.map(b => b.text || "").join("") || "";
+      const clean = raw.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean);
+      setResult(parsed);
+      setActiveSeq(0);
+      setStep(4);
+    } catch {
+      setResult({ error: "Generation failed. Please try again." });
+    }
+    setLoading(false);
+  };
+
+  const copyText = (text, id) => {
+    navigator.clipboard.writeText(text);
+    setCopied(id);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  const copyAll = () => {
+    if (!result?.emails) return;
+    const all = result.emails.map(e =>
+      `${e.label}\nSubject: ${e.subject}\n\n${e.body}`
+    ).join("\n\n" + "─".repeat(40) + "\n\n")
+      + `\n\n${"─".repeat(40)}\nLINKEDIN MESSAGE:\n${result.linkedin}`
+      + `\n\n${"─".repeat(40)}\nPRO TIPS:\n${result.tips?.map((t, i) => `${i + 1}. ${t}`).join("\n")}`;
+    copyText(all, "all");
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#060d1a", color: "#e2eaf5", fontFamily: "'DM Sans', sans-serif" }}>
+      <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+      <style>{`
+        * { box-sizing: border-box; }
+        input, textarea, select { font-family: 'DM Sans', sans-serif !important; transition: all 0.2s; }
+        input:focus, textarea:focus, select:focus { outline: none !important; border-color: #00e5b4 !important; box-shadow: 0 0 0 3px rgba(0,229,180,0.12) !important; }
+        input::placeholder, textarea::placeholder { color: #2e4060; }
+        .card { background: #0c1929; border: 1px solid #132036; border-radius: 12px; }
+        .pill { display: inline-block; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+        .email-tab { padding: 10px 16px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 500; white-space: nowrap; transition: all 0.2s; }
+        .btn-main { background: #00e5b4; color: #060d1a; border: none; border-radius: 8px; padding: 14px 32px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: 'DM Sans', sans-serif; letter-spacing: 0.03em; transition: all 0.2s; }
+        .btn-main:hover { background: #00ffca; transform: translateY(-1px); }
+        .btn-main:disabled { background: #132036; color: #2e4060; cursor: not-allowed; transform: none; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+        .fade-up { animation: fadeUp 0.35s ease forwards; }
+        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: #0c1929; } ::-webkit-scrollbar-thumb { background: #1e3350; border-radius: 2px; }
+      `}</style>
+
+      {/* Header */}
+      <div style={{ borderBottom: "1px solid #132036", padding: "18px 0" }}>
+        <div style={{ maxWidth: 820, margin: "0 auto", padding: "0 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <span style={{ fontFamily: "'Sora', sans-serif", fontSize: 20, fontWeight: 800, color: "#fff", letterSpacing: "-0.02em" }}>
+              Outreach<span style={{ color: "#00e5b4" }}>OS</span>
+            </span>
+            <span style={{ marginLeft: 10, fontSize: 11, color: "#2e5080", letterSpacing: "0.14em", textTransform: "uppercase", fontWeight: 500 }}>
+              Done-For-You Cold Email System
+            </span>
+          </div>
+          {/* Step tracker */}
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {STEPS.map((s, i) => (
+              <div key={s.n} style={{ display: "flex", alignItems: "center" }}>
+                <div style={{
+                  width: 26, height: 26, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 11, fontWeight: 700,
+                  background: step > s.n ? "#00e5b4" : step === s.n ? "transparent" : "transparent",
+                  border: `2px solid ${step > s.n ? "#00e5b4" : step === s.n ? "#00e5b4" : "#1e3350"}`,
+                  color: step > s.n ? "#060d1a" : step === s.n ? "#00e5b4" : "#2e5080",
+                  transition: "all 0.3s",
+                }}>
+                  {step > s.n ? "✓" : s.n}
+                </div>
+                {i < STEPS.length - 1 && <div style={{ width: 20, height: 1, background: step > s.n ? "#00e5b4" : "#1e3350", transition: "all 0.3s", margin: "0 2px" }} />}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 820, margin: "0 auto", padding: "40px 24px 80px" }}>
+
+        {step < 4 && (
+          <div className="fade-up">
+            <div style={{ marginBottom: 28 }}>
+              <div style={{ fontSize: 11, letterSpacing: "0.2em", color: "#00e5b4", textTransform: "uppercase", fontWeight: 600, marginBottom: 6 }}>
+                Step {step} of 3 — {STEPS[step - 1].label}
+              </div>
+              <h2 style={{ fontFamily: "'Sora', sans-serif", fontSize: "clamp(22px,3.5vw,30px)", fontWeight: 700, color: "#fff", margin: 0, lineHeight: 1.2 }}>
+                {step === 1 && "Tell us about your company"}
+                {step === 2 && "What do you offer?"}
+                {step === 3 && "Who are you targeting?"}
+              </h2>
+            </div>
+
+            <div className="card" style={{ padding: "32px" }}>
+              {step === 1 && (
+                <div style={{ display: "grid", gap: 20 }}>
+                  <FRow>
+                    <FField label="Company Name *" value={form.companyName} onChange={v => set("companyName", v)} placeholder="Acme Growth Co." />
+                    <div>
+                      <label style={lSt}>Industry *</label>
+                      <select value={form.industry} onChange={e => set("industry", e.target.value)} style={selSt}>
+                        <option value="">Select industry...</option>
+                        {INDUSTRIES.map(i => <option key={i}>{i}</option>)}
+                      </select>
+                    </div>
+                  </FRow>
+                </div>
+              )}
+
+              {step === 2 && (
+                <div style={{ display: "grid", gap: 20 }}>
+                  <FField label="Your Core Offer *" value={form.offer} onChange={v => set("offer", v)} placeholder="We build automated lead generation systems for B2B SaaS companies" full textarea rows={2} />
+                  <FField label="The Result / Transformation You Deliver *" value={form.transformation} onChange={v => set("transformation", v)} placeholder="Our clients book 15-30 qualified sales calls per month within 60 days" full textarea rows={2} />
+                  <FField label="Social Proof (optional but powerful)" value={form.proof} onChange={v => set("proof", v)} placeholder="Helped 47 SaaS companies, generated $2.3M in pipeline last year" full />
+                </div>
+              )}
+
+              {step === 3 && (
+                <div style={{ display: "grid", gap: 20 }}>
+                  <FRow>
+                    <FField label="Target Job Title *" value={form.targetTitle} onChange={v => set("targetTitle", v)} placeholder="Head of Sales, VP Marketing, Founder" />
+                    <FField label="Target Industry *" value={form.targetIndustry} onChange={v => set("targetIndustry", v)} placeholder="B2B SaaS companies with 10-100 employees" />
+                  </FRow>
+                  <FField label="Their #1 Pain Point *" value={form.targetPain} onChange={v => set("targetPain", v)} placeholder="Not enough qualified pipeline, reps waste time on wrong prospects" full textarea rows={2} />
+                  <div>
+                    <label style={lSt}>Goal of This Outreach *</label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 6 }}>
+                      {GOALS.map(g => (
+                        <div key={g} onClick={() => set("goal", g)} className="pill" style={{
+                          background: form.goal === g ? "#00e5b4" : "#0c1929",
+                          border: `1.5px solid ${form.goal === g ? "#00e5b4" : "#1e3350"}`,
+                          color: form.goal === g ? "#060d1a" : "#6a90b8",
+                          textAlign: "center", fontSize: 12
+                        }}>{g}</div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20 }}>
+              <button onClick={() => setStep(s => s - 1)} style={{ ...ghostBtn, opacity: step === 1 ? 0 : 1, pointerEvents: step === 1 ? "none" : "auto" }}>
+                ← Back
+              </button>
+              {step < 3 ? (
+                <button onClick={() => setStep(s => s + 1)} disabled={!isValid[step]} className="btn-main">
+                  Continue →
+                </button>
+              ) : (
+                <button onClick={generate} disabled={!isValid[3] || loading} className="btn-main">
+                  ✦ Generate My System
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Loading */}
+        {loading && (
+          <div style={{ textAlign: "center", padding: "80px 0" }} className="fade-up">
+            <div style={{ width: 40, height: 40, border: "3px solid #132036", borderTopColor: "#00e5b4", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 24px" }} />
+            <div style={{ fontFamily: "'Sora', sans-serif", fontSize: 20, fontWeight: 700, color: "#fff", marginBottom: 8 }}>Building your system...</div>
+            <div style={{ fontSize: 13, color: "#4a7099" }}>Crafting 5 emails + LinkedIn message tailored to {form.targetIndustry}</div>
+          </div>
+        )}
+
+        {/* Results */}
+        {step === 4 && result && !loading && (
+          <div className="fade-up">
+            {result.error ? (
+              <div style={{ color: "#ff6b6b", padding: 24 }}>{result.error}</div>
+            ) : (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+                  <div>
+                    <div style={{ fontFamily: "'Sora', sans-serif", fontSize: 24, fontWeight: 700, color: "#fff" }}>Your Cold Outreach System</div>
+                    <div style={{ fontSize: 13, color: "#4a7099", marginTop: 4 }}>5 emails + LinkedIn + Pro tips — ready to deploy</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={copyAll} style={ghostBtn}>{copied === "all" ? "✓ Copied All" : "⎘ Copy All"}</button>
+                    <button onClick={() => { setStep(1); setResult(null); setForm({ companyName: "", industry: "", offer: "", transformation: "", targetTitle: "", targetIndustry: "", targetPain: "", proof: "", goal: "" }); }} style={ghostBtn}>↺ Start Over</button>
+                  </div>
+                </div>
+
+                {/* Email tabs */}
+                <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 16, paddingBottom: 4 }}>
+                  {result.emails?.map((e, i) => (
+                    <div key={i} className="email-tab" onClick={() => setActiveSeq(i)} style={{
+                      background: activeSeq === i ? "#00e5b4" : "#0c1929",
+                      border: `1px solid ${activeSeq === i ? "#00e5b4" : "#1e3350"}`,
+                      color: activeSeq === i ? "#060d1a" : "#6a90b8",
+                    }}>
+                      Email {i + 1}
+                    </div>
+                  ))}
+                  <div className="email-tab" onClick={() => setActiveSeq(5)} style={{
+                    background: activeSeq === 5 ? "#00e5b4" : "#0c1929",
+                    border: `1px solid ${activeSeq === 5 ? "#00e5b4" : "#1e3350"}`,
+                    color: activeSeq === 5 ? "#060d1a" : "#6a90b8",
+                  }}>LinkedIn</div>
+                </div>
+
+                {/* Email display */}
+                {activeSeq < 5 && result.emails?.[activeSeq] && (
+                  <div className="card" style={{ padding: "24px 28px" }} key={activeSeq}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, gap: 12 }}>
+                      <div>
+                        <div style={{ fontSize: 11, color: "#00e5b4", fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 4 }}>
+                          {result.emails[activeSeq].label}
+                        </div>
+                        <div style={{ fontSize: 13, color: "#8ab0d4", fontWeight: 500 }}>
+                          Subject: <span style={{ color: "#e2eaf5" }}>{result.emails[activeSeq].subject}</span>
+                        </div>
+                      </div>
+                      <button onClick={() => copyText(`Subject: ${result.emails[activeSeq].subject}\n\n${result.emails[activeSeq].body}`, activeSeq)} style={ghostBtn}>
+                        {copied === activeSeq ? "✓ Copied" : "⎘ Copy"}
+                      </button>
+                    </div>
+                    <div style={{ background: "#060d1a", borderRadius: 8, padding: "20px 24px", fontSize: 14, lineHeight: 1.85, color: "#c5d8f0", whiteSpace: "pre-wrap", fontFamily: "'DM Sans', sans-serif", border: "1px solid #0e2038" }}>
+                      {result.emails[activeSeq].body}
+                    </div>
+                  </div>
+                )}
+
+                {/* LinkedIn */}
+                {activeSeq === 5 && (
+                  <div className="card" style={{ padding: "24px 28px" }} key="li">
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                      <div style={{ fontSize: 11, color: "#00e5b4", fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase" }}>
+                        LinkedIn Connection Request
+                      </div>
+                      <button onClick={() => copyText(result.linkedin, "li")} style={ghostBtn}>
+                        {copied === "li" ? "✓ Copied" : "⎘ Copy"}
+                      </button>
+                    </div>
+                    <div style={{ background: "#060d1a", borderRadius: 8, padding: "20px 24px", fontSize: 14, lineHeight: 1.85, color: "#c5d8f0", fontFamily: "'DM Sans', sans-serif", border: "1px solid #0e2038" }}>
+                      {result.linkedin}
+                    </div>
+                    <div style={{ marginTop: 12, fontSize: 12, color: "#2e5080" }}>LinkedIn allows 300 characters max for connection notes. This is optimized for that limit.</div>
+                  </div>
+                )}
+
+                {/* Pro tips */}
+                {result.tips && (
+                  <div className="card" style={{ padding: "20px 24px", marginTop: 16 }}>
+                    <div style={{ fontSize: 11, color: "#00e5b4", fontWeight: 600, letterSpacing: "0.15em", textTransform: "uppercase", marginBottom: 14 }}>
+                      Pro Tips for {form.targetIndustry}
+                    </div>
+                    {result.tips.map((t, i) => (
+                      <div key={i} style={{ display: "flex", gap: 12, padding: "8px 0", borderBottom: i < result.tips.length - 1 ? "1px solid #0e2038" : "none" }}>
+                        <span style={{ color: "#00e5b4", fontWeight: 700, minWidth: 20, fontSize: 13 }}>{i + 1}.</span>
+                        <span style={{ fontSize: 13, color: "#8ab0d4", lineHeight: 1.6 }}>{t}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Navigation */}
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  {activeSeq > 0 && (
+                    <button onClick={() => setActiveSeq(a => a - 1)} style={ghostBtn}>← Prev Email</button>
+                  )}
+                  {activeSeq < 5 && (
+                    <button onClick={() => setActiveSeq(a => a + 1)} style={ghostBtn}>Next Email →</button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        <div style={{ marginTop: 48, textAlign: "center", fontSize: 11, color: "#1e3350", letterSpacing: "0.1em" }}>
+          OUTREACHOS · ZERO-TOUCH COLD EMAIL SYSTEM
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FRow({ children }) {
+  return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>{children}</div>;
+}
+function FField({ label, value, onChange, placeholder, full, textarea, rows, type = "text" }) {
+  const base = { width: "100%", padding: "11px 14px", background: "#060d1a", border: "1.5px solid #132036", borderRadius: 8, fontSize: 14, color: "#e2eaf5" };
+  return (
+    <div>
+      <label style={lSt}>{label}</label>
+      {textarea
+        ? <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows || 3} style={{ ...base, resize: "vertical", lineHeight: 1.6 }} />
+        : <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={base} />
+      }
+    </div>
+  );
+}
+
+const lSt = { display: "block", fontSize: 11, fontWeight: 600, color: "#4a7099", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: 6 };
+const selSt = { width: "100%", padding: "11px 14px", background: "#060d1a", border: "1.5px solid #132036", borderRadius: 8, fontSize: 14, color: "#e2eaf5", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" };
+const ghostBtn = { padding: "8px 16px", background: "transparent", border: "1px solid #1e3350", borderRadius: 6, color: "#6a90b8", cursor: "pointer", fontSize: 12, fontFamily: "'DM Sans', sans-serif", fontWeight: 500, transition: "all 0.15s" };
